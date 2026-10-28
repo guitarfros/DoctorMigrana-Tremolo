@@ -1,4 +1,11 @@
 cmake_minimum_required(VERSION 3.22)
+
+# macOS: binario universal (Intel + Apple Silicon). Debe ir ANTES de project().
+if(APPLE)
+    set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "Build architectures for macOS")
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum macOS version")
+endif()
+
 project(DoctorMigranaTremolo VERSION 0.1.0)
 
 # Copia o plugin ao cartafol do sistema despois de compilar (desactivado no CI)
