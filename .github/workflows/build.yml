@@ -1,0 +1,77 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write   # necesario para crear Releases
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: Linux
+            cmake_args: ''
+          - os: windows-latest
+            name: Windows
+            cmake_args: ''
+          - os: macos-latest
+            name: macOS
+            cmake_args: '"-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15'
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libjack-jackd2-dev libfreetype-dev \
+            libfontconfig1-dev libx11-dev libxrandr-dev libxinerama-dev \
+            libxcursor-dev libxext-dev libxrender-dev libxcomposite-dev libglu1-mesa-dev mesa-common-dev
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DMIGRANA_COPY_AFTER_BUILD=OFF ${{ matrix.cmake_args }}
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Package
+        run: |
+          A="build/DoctorMigranaTremolo_artefacts/Release"
+          find "$A" -maxdepth 2
+          mkdir -p dist
+          cp -R "$A/VST3" dist/
+          cp -R "$A/Standalone" dist/
+          cp README.md LICENSE NOTICE.md dist/
+          cmake -E tar cf "Doctor-Migrana-Tremolo-${{ matrix.name }}.zip" --format=zip dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Doctor-Migrana-Tremolo-${{ matrix.name }}
+          path: Doctor-Migrana-Tremolo-${{ matrix.name }}.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*.zip
+          generate_release_notes: true
